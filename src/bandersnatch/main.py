@@ -61,6 +61,7 @@ def mirror(config):
         json_save=json_save,
         root_uri=root_uri,
         digest_name=digest_name,
+        mirror_order = config.get("mirror", "name_order")
     )
 
     changed_packages = mirror.synchronize()

@@ -67,6 +67,7 @@ class Mirror:
         json_save=False,
         digest_name=None,
         root_uri=None,
+        mirror_order='name'
     ):
         logger.info(f"{USER_AGENT}")
         self.homedir = homedir
@@ -79,6 +80,10 @@ class Mirror:
         self.workers = workers
         if self.workers > 10:
             raise ValueError("Downloading with more than 10 workers is not allowed.")
+        self._sort_key_function = self._sort_by_key
+        if mirror_order.lower() == 'serial':
+            self._sort_key_function = self._sort_by_value
+        self._mirror_order = mirror_order
         self._bootstrap()
         self._finish_lock = RLock()
 
@@ -86,6 +91,7 @@ class Mirror:
         # Format: dict['pkg_name'] = [set(removed), Set[added]
         # Class Instance variable so each package can add their changes
         self.altered_packages = {}
+
 
     @property
     def webdir(self):
@@ -141,6 +147,16 @@ class Mirror:
                     )
                     del (self.packages_to_sync[package_name])
 
+    @staticmethod
+    def _sort_by_key(item):
+        """Sort the dictionary by key"""
+        return item[0]
+
+    @staticmethod
+    def _sort_by_value(item):
+        """Sort the dictionary by value"""
+        return item[1]
+
     def determine_packages_to_sync(self):
         """
         Update the self.packages_to_sync to contain packages that need to be
@@ -192,8 +208,9 @@ class Mirror:
         packages = []
         # Sorting the packages alphabetically makes it more predicatable:
         # easier to debug and easier to follow in the logs.
-        for name in sorted(self.packages_to_sync):
-            serial = self.packages_to_sync[name]
+        for name, serial in sorted(
+                self.packages_to_sync.items(), key=self._sort_key_function
+        ):
             packages.append(Package(name, serial, self))
 
         # Replace threading with asyncio executors for now
